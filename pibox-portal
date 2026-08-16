@@ -92,10 +92,10 @@ case "${1:-}" in
                 ;;
         esac
 
-        [ "$octet" -ge 2 ] && [ "$octet" -le 254 ] || {
+        if [ "$octet" -lt 2 ] || [ "$octet" -gt 254 ]; then
             echo "Invalid client address." >&2
             exit 2
-        }
+        fi
 
         dns="$(upstream_dns)"
         if [ -z "$dns" ] || ! valid_ipv4 "$dns"; then
