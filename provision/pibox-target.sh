@@ -151,8 +151,9 @@ require_printable_ascii()
     maximum_length="$4"
 
     value_length="$(printf '%s' "$value" | LC_ALL=C wc -c | tr -d ' ')"
-    [ "$value_length" -ge "$minimum_length" ] && [ "$value_length" -le "$maximum_length" ] || \
+    if [ "$value_length" -lt "$minimum_length" ] || [ "$value_length" -gt "$maximum_length" ]; then
         die "$value_name must contain between $minimum_length and $maximum_length characters."
+    fi
     printf '%s' "$value" | LC_ALL=C grep -Eq '^[ -~]+$' || \
         die "$value_name must use printable ASCII characters only."
 }
