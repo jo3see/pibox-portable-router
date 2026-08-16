@@ -48,6 +48,8 @@ default PiBox SSID is hidden; add `-BroadcastAccessPoint` if clients should see
 it in their normal network list.
 
 See the complete beginner walkthrough in `../docs/FIRST-INSTALL.md`.
+For the exact host-Wi-Fi and captive-portal button sequence, see
+`../docs/USING-PIBOX.md`.
 
 ## Clone an existing PiBox
 
@@ -124,6 +126,10 @@ sudo systemctl restart pibox-routing.service
 
 Never copy `/var/lib/tailscale` from another Pi. Sign Raspberry Pi Connect in
 separately as well if you choose to use it.
+
+Tailscale and an online exit node are required for normal PiBox client internet
+access. This release has no permanent direct-to-`wlan1` mode. Guest Login Mode
+is only the temporary captive-portal authentication path.
 
 ## Verification
 

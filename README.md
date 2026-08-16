@@ -20,6 +20,20 @@ Use PiBox only on networks you are authorized to access. Guest Login Mode is
 intended to complete legitimate captive-portal authentication, not to bypass
 access controls or network policy.
 
+> [!IMPORTANT]
+> Normal PiBox internet access requires Tailscale and a working Tailscale exit
+> node. This release does not provide a permanent direct-to-host-Wi-Fi mode.
+> After Guest Login Mode closes, the kill switch blocks client traffic unless
+> the Tailscale exit path is working.
+
+## Three names to understand
+
+| Name | Meaning |
+|---|---|
+| **PiBox Wi-Fi** | The private, hidden SSID created during installation. Your phone, tablet, or laptop connects to this network through `wlan0`. |
+| **Host Wi-Fi** | The hotel, workplace, or home network that gives the Pi internet access. The USB adapter connects to this network through `wlan1`. |
+| **Tailscale exit node** | A separate trusted device, usually at home, through which PiBox sends normal internet traffic. |
+
 ## Traffic paths
 
 ```mermaid
@@ -91,8 +105,16 @@ Other observed adapters are documented in [Hardware](docs/HARDWARE.md).
    sudo pibox-verify 100.64.0.20 rtw89_8852bu
    ```
 
+7. Connect a phone, tablet, or laptop to the hidden PiBox SSID. Open
+   `http://10.3.141.1`, use **WiFi client** to connect `wlan1` to the host
+   Wi-Fi, and then use `http://10.3.141.1/portal.php` if that network requires
+   terms-of-service acceptance.
+
 Start with the [First-device guide](docs/FIRST-INSTALL.md). Existing PiBox
 owners can instead use the [clone workflow](provision/README.md#clone-an-existing-pibox).
+
+For the exact buttons to press whenever you arrive at a new hotel or workplace,
+follow [Using PiBox](docs/USING-PIBOX.md).
 
 ## Project status
 
