@@ -1,0 +1,49 @@
+name: USB Wi-Fi adapter report
+description: Report a tested upstream USB Wi-Fi adapter
+title: "[Adapter]: "
+labels:
+  - hardware
+body:
+  - type: markdown
+    attributes:
+      value: Do not include SSIDs, credentials, public IPs, Tailscale addresses, or unsanitized logs.
+  - type: input
+    id: adapter
+    attributes:
+      label: Adapter make and model
+    validations:
+      required: true
+  - type: input
+    id: usb_id
+    attributes:
+      label: USB ID
+      description: Output in vendor:product form, for example 35bc:0108.
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: Kernel driver
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Raspberry Pi model, OS, and kernel
+    validations:
+      required: true
+  - type: dropdown
+    id: cold_boot
+    attributes:
+      label: Cold boot successful?
+      options:
+        - "Yes"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Sanitized results and observations
+    validations:
+      required: true

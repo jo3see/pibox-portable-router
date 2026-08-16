@@ -1,0 +1,7 @@
+[Unit]
+Description=Automatically close PiBox Guest Login Mode
+
+[Timer]
+OnActiveSec=10min
+AccuracySec=1s
+Unit=pibox-portal-close.service

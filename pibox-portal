@@ -1,0 +1,135 @@
+#!/bin/sh
+set -eu
+
+STATE_FILE=/run/pibox-portal-client
+DNS_STATE_FILE=/run/pibox-portal-dns
+CLIENT_RULE_PRIORITY=5265
+PIBOX_GATEWAY=10.3.141.1
+
+valid_ipv4()
+{
+    printf '%s\n' "$1" | awk -F. '
+        NF != 4 { exit 1 }
+        {
+            for (i = 1; i <= 4; i++) {
+                if ($i !~ /^[0-9]+$/ || $i < 0 || $i > 255) {
+                    exit 1
+                }
+            }
+        }
+    '
+}
+
+upstream_dns()
+{
+    dhcpcd -U wlan1 2>/dev/null |
+        sed -n 's/^domain_name_servers=//p' |
+        awk 'NR == 1 { print $1; exit }'
+}
+
+remove_client()
+{
+    if [ ! -f "$STATE_FILE" ]; then
+        rm -f "$DNS_STATE_FILE"
+        return
+    fi
+
+    client="$(cat "$STATE_FILE")"
+    dns=''
+    if [ -f "$DNS_STATE_FILE" ]; then
+        dns="$(cat "$DNS_STATE_FILE")"
+    fi
+
+    while ip rule del priority "$CLIENT_RULE_PRIORITY" from "$client/32" lookup main 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan0 -s "$client/32" -o wlan1 -p udp --dport 53 -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan0 -s "$client/32" -o wlan1 -p tcp --dport 53 -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan0 -s "$client/32" -o wlan1 -p tcp -m multiport --dports 80,443 -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan0 -s "$client/32" -o wlan1 -p udp --dport 443 -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan0 -s "$client/32" -o wlan1 -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D PIBOX-KILLSWITCH -i wlan1 -o wlan0 -d "$client/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; do :; done
+    while iptables -t nat -D POSTROUTING -s "$client/32" -o wlan1 -j MASQUERADE 2>/dev/null; do :; done
+
+    if [ -n "$dns" ]; then
+        while iptables -t nat -D PREROUTING -i wlan0 -s "$client/32" -d "$PIBOX_GATEWAY/32" -p udp --dport 53 -j DNAT --to-destination "$dns:53" 2>/dev/null; do :; done
+        while iptables -t nat -D PREROUTING -i wlan0 -s "$client/32" -d "$PIBOX_GATEWAY/32" -p tcp --dport 53 -j DNAT --to-destination "$dns:53" 2>/dev/null; do :; done
+    fi
+
+    rm -f "$STATE_FILE" "$DNS_STATE_FILE"
+}
+
+case "${1:-}" in
+    on)
+        [ "$#" -eq 2 ] || {
+            echo "Usage: pibox-portal on CLIENT_IP" >&2
+            exit 2
+        }
+
+        client="$2"
+
+        case "$client" in
+            10.3.141.*) ;;
+            *)
+                echo "Client must be on the PiBox subnet." >&2
+                exit 2
+                ;;
+        esac
+
+        octet="${client##*.}"
+        case "$octet" in
+            ''|*[!0-9]*)
+                echo "Invalid client address." >&2
+                exit 2
+                ;;
+        esac
+
+        [ "$octet" -ge 2 ] && [ "$octet" -le 254 ] || {
+            echo "Invalid client address." >&2
+            exit 2
+        }
+
+        dns="$(upstream_dns)"
+        if [ -z "$dns" ] || ! valid_ipv4 "$dns"; then
+            echo "No valid IPv4 DNS resolver was supplied to wlan1 by DHCP." >&2
+            exit 1
+        fi
+
+        remove_client
+        printf '%s\n' "$client" >"$STATE_FILE"
+        printf '%s\n' "$dns" >"$DNS_STATE_FILE"
+        chmod 644 "$STATE_FILE"
+        chmod 600 "$DNS_STATE_FILE"
+
+        cleanup_on_error=1
+        trap '
+            rc=$?
+            trap - EXIT HUP INT TERM
+            if [ "$rc" -ne 0 ] && [ "${cleanup_on_error:-0}" -eq 1 ]; then
+                remove_client
+            fi
+            exit "$rc"
+        ' EXIT HUP INT TERM
+
+        ip rule add priority "$CLIENT_RULE_PRIORITY" from "$client/32" lookup main
+        iptables -I PIBOX-KILLSWITCH 1 -i wlan1 -o wlan0 -d "$client/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+        iptables -I PIBOX-KILLSWITCH 1 -i wlan0 -s "$client/32" -o wlan1 -j ACCEPT
+        iptables -t nat -I PREROUTING 1 -i wlan0 -s "$client/32" -d "$PIBOX_GATEWAY/32" -p udp --dport 53 -j DNAT --to-destination "$dns:53"
+        iptables -t nat -I PREROUTING 1 -i wlan0 -s "$client/32" -d "$PIBOX_GATEWAY/32" -p tcp --dport 53 -j DNAT --to-destination "$dns:53"
+        iptables -t nat -I POSTROUTING 1 -s "$client/32" -o wlan1 -j MASQUERADE
+
+        systemctl restart pibox-portal-close.timer
+        cleanup_on_error=0
+        trap - EXIT HUP INT TERM
+        echo "Guest Login Mode enabled with full direct access for $client for 10 minutes using upstream DNS $dns."
+        ;;
+
+    off)
+        remove_client
+        systemctl stop --no-block pibox-portal-close.timer
+        echo "Guest Login Mode disabled."
+        ;;
+
+    *)
+        echo "Usage: pibox-portal on CLIENT_IP | off" >&2
+        exit 2
+        ;;
+esac

@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+while ip rule del priority 5260 2>/dev/null; do :; done
+ip rule add priority 5260 to 10.3.141.0/24 lookup main
+
+iptables -N PIBOX-KILLSWITCH 2>/dev/null || true
+iptables -F PIBOX-KILLSWITCH
+iptables -A PIBOX-KILLSWITCH -i wlan0 -o tailscale0 -j ACCEPT
+iptables -A PIBOX-KILLSWITCH -i tailscale0 -o wlan0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+iptables -A PIBOX-KILLSWITCH -i wlan0 -j REJECT
+
+while iptables -D FORWARD -j PIBOX-KILLSWITCH 2>/dev/null; do :; done
+iptables -I FORWARD 1 -j PIBOX-KILLSWITCH
+
+while iptables -t nat -D POSTROUTING -s 10.3.141.0/24 -o tailscale0 -j MASQUERADE 2>/dev/null; do :; done
+iptables -t nat -I POSTROUTING 1 -s 10.3.141.0/24 -o tailscale0 -j MASQUERADE
+
+while iptables -t mangle -D FORWARD -o tailscale0 -p tcp -m tcp \
+    --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; do :; done
+iptables -t mangle -I FORWARD 1 -o tailscale0 -p tcp -m tcp \
+    --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu

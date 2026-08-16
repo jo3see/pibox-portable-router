@@ -1,0 +1,11 @@
+PiBox Portable Router
+
+This project integrates with, but is not affiliated with, Raspberry Pi OS,
+RaspAP, Tailscale, TP-Link, or NeverSSL.
+
+RaspAP is developed by the RaspAP project and distributed under the GNU General
+Public License. See https://github.com/RaspAP/raspap-webgui.
+
+Tailscale is a trademark of Tailscale Inc. Raspberry Pi is a trademark of
+Raspberry Pi Ltd. Other product names are the property of their respective
+owners.

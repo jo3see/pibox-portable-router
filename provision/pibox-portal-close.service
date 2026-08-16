@@ -1,0 +1,6 @@
+[Unit]
+Description=Close PiBox Guest Login Mode
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pibox-portal off

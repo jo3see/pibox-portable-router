@@ -1,0 +1,12 @@
+[Unit]
+Description=PiBox Tailscale routing and kill switch
+After=network-online.target tailscaled.service hostapd.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pibox-routing
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
