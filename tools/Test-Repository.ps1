@@ -22,6 +22,7 @@ try {
     $requiredFiles = @(
         'README.md', 'LICENSE', 'NOTICE', 'SECURITY.md', 'CONTRIBUTING.md',
         '.gitignore', 'PIBOX-CLONE-SPEC.md',
+        'docs/FIRST-INSTALL.md', 'provision/Invoke-PiBoxFirstInstall.ps1',
         'provision/Invoke-PiBoxClone.ps1', 'provision/pibox-target.sh',
         'provision/pibox-verify.sh'
     )

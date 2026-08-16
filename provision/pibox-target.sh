@@ -137,6 +137,170 @@ prepare()
     echo "PREPARE=PASS"
 }
 
+decode_payload_value()
+{
+    encoded_value="$1"
+    printf '%s' "$encoded_value" | base64 -d
+}
+
+require_printable_ascii()
+{
+    value_name="$1"
+    value="$2"
+    minimum_length="$3"
+    maximum_length="$4"
+
+    value_length="$(printf '%s' "$value" | LC_ALL=C wc -c | tr -d ' ')"
+    [ "$value_length" -ge "$minimum_length" ] && [ "$value_length" -le "$maximum_length" ] || \
+        die "$value_name must contain between $minimum_length and $maximum_length characters."
+    printf '%s' "$value" | LC_ALL=C grep -Eq '^[ -~]+$' || \
+        die "$value_name must use printable ASCII characters only."
+}
+
+escape_wpa_value()
+{
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+configure_new()
+{
+    require_root
+    [ -f "$STATE_DIR/prepared" ] || die "Prepare phase has not completed."
+
+    IFS= read -r payload_version || die "Missing first-install configuration payload."
+    [ "$payload_version" = PIBOX_FIRST_CONFIG_V1 ] || die "Unsupported first-install configuration payload."
+    IFS= read -r country_encoded || die "Missing country code."
+    IFS= read -r ap_ssid_encoded || die "Missing access-point SSID."
+    IFS= read -r ap_passphrase_encoded || die "Missing access-point passphrase."
+    IFS= read -r admin_user_encoded || die "Missing administrator username."
+    IFS= read -r admin_password_encoded || die "Missing administrator password."
+    IFS= read -r upstream_ssid_encoded || die "Missing upstream SSID field."
+    IFS= read -r upstream_passphrase_encoded || die "Missing upstream passphrase field."
+    IFS= read -r upstream_security || die "Missing upstream security field."
+    IFS= read -r broadcast_ap || die "Missing access-point visibility field."
+
+    country="$(decode_payload_value "$country_encoded")"
+    ap_ssid="$(decode_payload_value "$ap_ssid_encoded")"
+    ap_passphrase="$(decode_payload_value "$ap_passphrase_encoded")"
+    admin_user="$(decode_payload_value "$admin_user_encoded")"
+    admin_password="$(decode_payload_value "$admin_password_encoded")"
+    upstream_ssid="$(decode_payload_value "$upstream_ssid_encoded")"
+    upstream_passphrase="$(decode_payload_value "$upstream_passphrase_encoded")"
+
+    case "$country" in
+        [A-Z][A-Z]) ;;
+        *) die "Country code must contain exactly two uppercase letters." ;;
+    esac
+    require_printable_ascii "Access-point SSID" "$ap_ssid" 1 32
+    require_printable_ascii "Access-point passphrase" "$ap_passphrase" 8 63
+    case "$admin_user" in
+        *[!a-zA-Z0-9_.-]*|'') die "Administrator username contains unsupported characters." ;;
+    esac
+    [ "$(printf '%s' "$admin_user" | wc -c | tr -d ' ')" -le 32 ] || \
+        die "Administrator username must contain no more than 32 characters."
+    require_printable_ascii "Administrator password" "$admin_password" 12 128
+    case "$upstream_security" in
+        none)
+            [ -z "$upstream_ssid" ] || die "Upstream security must be open or wpa-psk when an SSID is supplied."
+            [ -z "$upstream_passphrase" ] || die "Unexpected upstream passphrase."
+            ;;
+        open)
+            require_printable_ascii "Upstream SSID" "$upstream_ssid" 1 32
+            [ -z "$upstream_passphrase" ] || die "An open upstream network cannot have a passphrase."
+            ;;
+        wpa-psk)
+            require_printable_ascii "Upstream SSID" "$upstream_ssid" 1 32
+            require_printable_ascii "Upstream passphrase" "$upstream_passphrase" 8 63
+            ;;
+        *) die "Unsupported upstream security mode." ;;
+    esac
+    case "$broadcast_ap" in
+        0|1) ;;
+        *) die "Access-point visibility must be 0 or 1." ;;
+    esac
+
+    stamp="$(date +%Y%m%dT%H%M%S%z)"
+    backup_dir="/root/pibox-first-install-backups/$stamp"
+    install -d -o root -g root -m 0700 "$backup_dir"
+    for path in /etc/hostapd/hostapd.conf /etc/wpa_supplicant/wpa_supplicant.conf \
+        /etc/raspap/raspap.auth; do
+        backup_path "$path" "$backup_dir"
+    done
+
+    install -d -o root -g root -m 0755 /etc/hostapd /etc/wpa_supplicant /etc/raspap
+    umask 077
+    hostapd_temp="$(mktemp /etc/hostapd/.pibox-hostapd.XXXXXX)"
+    wpa_temp="$(mktemp /etc/wpa_supplicant/.pibox-wpa.XXXXXX)"
+    auth_temp="$(mktemp /etc/raspap/.pibox-auth.XXXXXX)"
+    cleanup_configure_new()
+    {
+        rm -f -- "$hostapd_temp" "$wpa_temp" "$auth_temp"
+    }
+    trap cleanup_configure_new EXIT HUP INT TERM
+
+    cat >"$hostapd_temp" <<EOF
+driver=nl80211
+ctrl_interface=/var/run/hostapd
+ctrl_interface_group=0
+beacon_int=100
+auth_algs=1
+wpa_key_mgmt=WPA-PSK
+ssid=$ap_ssid
+channel=6
+hw_mode=g
+EOF
+    printf 'wpa_passphrase=%s\n' "$ap_passphrase" >>"$hostapd_temp"
+    cat >>"$hostapd_temp" <<EOF
+interface=wlan0
+wpa=2
+wpa_pairwise=CCMP
+rsn_pairwise=CCMP
+country_code=$country
+ignore_broadcast_ssid=$((1 - broadcast_ap))
+ieee80211n=1
+wmm_enabled=1
+EOF
+
+    cat >"$wpa_temp" <<EOF
+ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=$country
+EOF
+    if [ "$upstream_security" != none ]; then
+        escaped_upstream_ssid="$(escape_wpa_value "$upstream_ssid")"
+        {
+            printf '\nnetwork={\n'
+            printf '    ssid="%s"\n' "$escaped_upstream_ssid"
+            if [ "$upstream_security" = wpa-psk ]; then
+                escaped_upstream_passphrase="$(escape_wpa_value "$upstream_passphrase")"
+                printf '    psk="%s"\n' "$escaped_upstream_passphrase"
+                printf '    key_mgmt=WPA-PSK\n'
+            else
+                printf '    key_mgmt=NONE\n'
+            fi
+            printf '}\n'
+        } >>"$wpa_temp"
+    fi
+
+    # The dollar signs below belong to PHP, not the shell.
+    # shellcheck disable=SC2016
+    admin_hash="$(printf '%s' "$admin_password" | php -r '$password = stream_get_contents(STDIN); echo password_hash($password, PASSWORD_BCRYPT);')"
+    [ -n "$admin_hash" ] || die "Could not create the administrator password hash."
+    printf '%s\n%s\n' "$admin_user" "$admin_hash" >"$auth_temp"
+
+    install -o root -g root -m 0644 "$hostapd_temp" /etc/hostapd/hostapd.conf
+    install -o root -g root -m 0600 "$wpa_temp" /etc/wpa_supplicant/wpa_supplicant.conf
+    install -o www-data -g www-data -m 0644 "$auth_temp" /etc/raspap/raspap.auth
+    rm -f -- "$hostapd_temp" "$wpa_temp" "$auth_temp"
+    trap - EXIT HUP INT TERM
+
+    unset ap_passphrase admin_password upstream_passphrase admin_hash
+    date -Is >"$STATE_DIR/first-configured"
+    echo "FIRST_CONFIG=PASS"
+    echo "UPSTREAM_PROFILE=$upstream_security"
+    echo "BACKUP_DIR=$backup_dir"
+}
+
 finalize()
 {
     require_root
@@ -160,7 +324,7 @@ finalize()
     backup_dir="/root/pibox-clone-backups/$stamp"
     install -d -o root -g root -m 0700 "$backup_dir"
     for path in /etc/dhcpcd.conf /etc/dnsmasq.d /etc/lighttpd/conf-available/50-raspap-router.conf \
-        /usr/local/sbin/pibox-routing /usr/local/sbin/pibox-portal \
+        /usr/local/sbin/pibox-routing /usr/local/sbin/pibox-portal /usr/local/sbin/pibox-verify \
         /etc/systemd/system/pibox-routing.service /etc/systemd/system/pibox-portal-close.service \
         /etc/systemd/system/pibox-portal-close.timer /etc/sudoers.d/pibox-portal /var/www/html/portal.php; do
         backup_path "$path" "$backup_dir"
@@ -213,6 +377,7 @@ EOF
 
     install -o root -g root -m 0755 "$SCRIPT_DIR/pibox-routing" /usr/local/sbin/pibox-routing
     install -o root -g root -m 0755 "$SCRIPT_DIR/../pibox-portal" /usr/local/sbin/pibox-portal
+    install -o root -g root -m 0755 "$SCRIPT_DIR/pibox-verify.sh" /usr/local/sbin/pibox-verify
     install -o root -g root -m 0644 "$SCRIPT_DIR/pibox-routing.service" /etc/systemd/system/pibox-routing.service
     install -o root -g root -m 0644 "$SCRIPT_DIR/pibox-portal-close.service" /etc/systemd/system/pibox-portal-close.service
     install -o root -g root -m 0644 "$SCRIPT_DIR/pibox-portal-close.timer" /etc/systemd/system/pibox-portal-close.timer
@@ -267,5 +432,9 @@ case "${1:-}" in
         shift
         finalize "$@"
         ;;
-    *) die "Usage: $0 preflight | prepare | finalize UNIQUE_HOSTNAME" ;;
+    configure-new)
+        shift
+        configure_new "$@"
+        ;;
+    *) die "Usage: $0 preflight | prepare | configure-new | finalize UNIQUE_HOSTNAME" ;;
 esac

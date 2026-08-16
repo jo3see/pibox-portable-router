@@ -27,15 +27,17 @@ from identities that must be regenerated for every device.
 - Country `US`, hidden SSID
 - WPA2-PSK with CCMP
 - DHCP pool: `10.3.141.50` through `10.3.141.254`, 12-hour leases
-- The AP passphrase is copied directly from the working Pi to the new Pi in
-  memory. It is never written to this repository or printed by the tooling.
+- The AP passphrase is supplied through hidden interactive input for a first
+  device or copied directly from a trusted working Pi for a clone. It is never
+  written to this repository or printed by the tooling.
 
 ## Upstream Wi-Fi
 
 - Interface: `wlan1`
 - Managed by `wpa_supplicant@wlan1.service` and `dhcpcd`
-- The live source Pi's network profiles are copied directly in memory so the
-  new Pi knows the same upstream SSIDs and credentials.
+- A first-device installation may create one initial open or WPA-PSK upstream
+  profile. A clone copies the trusted source Pi's network profiles directly in
+  memory.
 - `/etc/wpa_supplicant/wpa_supplicant-wlan1.conf` is a symlink to
   `/etc/wpa_supplicant/wpa_supplicant.conf`.
 
@@ -71,8 +73,8 @@ from identities that must be regenerated for every device.
 - Main repository commit: `e01a2aea27c2d49b602f1b3d043d219c16962216`
 - Plugins repository commit: `c44d00e5d2e7832ebbaa69025da25b87488b546a`
 - Web stack: lighttpd with PHP 8.4 FPM
-- RaspAP admin authentication is copied directly from the working Pi without
-  exposing the password hash.
+- A first-device installation creates a bcrypt hash from hidden interactive
+  input. A clone copies RaspAP authentication from the trusted working Pi.
 
 ## Tailscale
 
@@ -106,16 +108,19 @@ source setting.
 Cloning any of those would make two simultaneously running devices conflict or
 appear to be the same machine.
 
-## Deployment sequence
+## First-device deployment sequence
 
 1. Flash 64-bit Raspberry Pi OS Lite (Debian 13), create user `pibox`, enable
    SSH, and install your own SSH public key.
 2. Attach the selected USB Wi-Fi adapter and connect Ethernet.
-3. Run the orchestration script without `-Apply`; all preflight checks must pass.
-4. Run it with `-Apply`. It installs RaspAP and the network stack, transfers the
-   three private configuration areas directly from the working Pi, and installs
-   the routing and portal components.
+3. Run `Invoke-PiBoxFirstInstall.ps1` without `-Apply`; all preflight checks
+   must pass.
+4. Run it with `-Apply`. It installs RaspAP and the network stack, prompts for
+   private configuration, and installs the routing and portal components.
 5. Reboot the new Pi, enroll it as a fresh Tailscale node, apply the exact exit
    node preferences, and run the read-only verifier.
 6. Test normal protected browsing and a real captive-portal acceptance using
    Guest Login Mode; confirm another client remains blocked from direct `wlan1`.
+
+The clone deployment sequence uses `Invoke-PiBoxClone.ps1` at steps 3 and 4 and
+obtains private configuration from a trusted live source or encrypted export.

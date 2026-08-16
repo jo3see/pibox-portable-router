@@ -2,10 +2,10 @@
 
 ## Near term
 
-- Add a clean-room first-device wizard that does not require a source PiBox.
-- Accept AP, upstream, administrator, and exit-node configuration through a
-  validated local configuration format without placing secrets on a command
-  line.
+- Exercise the first-device installer across clean Pi 3B and Pi 5 images and
+  expand its supported upstream authentication types.
+- Add optional Tailscale auth-key enrollment without exposing the key in
+  command history or logs.
 - Add integration tests for routing, timer cleanup, CSRF rejection, and
   single-client Guest Login isolation.
 - Test current Raspberry Pi OS updates and newer RaspAP releases in a disposable

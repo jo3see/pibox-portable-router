@@ -29,10 +29,17 @@ minimal proof of concept when safe.
 
 ## Secret handling
 
-The orchestrator can stream configuration directly from a trusted source PiBox
-or use a Windows DPAPI CurrentUser-encrypted bundle. DPAPI encryption is not a
-substitute for access control or backups. Never commit the bundle, decrypted
-configuration, Wi-Fi credentials, RaspAP hashes, SSH keys, or Tailscale state.
+The first-device installer accepts passwords as hidden `SecureString` input and
+streams a short-lived encoded payload through SSH standard input. Encoding is
+not encryption; SSH supplies transport protection. The target necessarily
+stores Wi-Fi credentials in its protected service configuration, while RaspAP's
+administrator password is stored as a bcrypt hash.
+
+The clone orchestrator can stream configuration directly from a trusted source
+PiBox or use a Windows DPAPI CurrentUser-encrypted bundle. DPAPI encryption is
+not a substitute for access control or backups. Never commit the bundle,
+decrypted configuration, Wi-Fi credentials, RaspAP hashes, SSH keys, or
+Tailscale state.
 
 Before publishing any change, run the repository checks and inspect the entire
 staged diff for personal addresses, SSIDs, hostnames, and credentials.

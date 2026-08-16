@@ -39,8 +39,13 @@ Closing the mode, timer expiry, or a failed partial setup removes the temporary
 state and rules. The broad temporary access is intentional because captive
 portals may use arbitrary ports, protocols, and redirect targets.
 
-## Identity boundaries
+## Configuration sources and identity boundaries
 
-The source appliance may supply AP, upstream Wi-Fi, and RaspAP authentication
-configuration. Each target must generate or retain its own hostname, machine ID,
-SSH host keys, DHCP state, Raspberry Pi Connect identity, and Tailscale identity.
+For a first-device installation, the operator supplies the AP, optional initial
+upstream Wi-Fi, and RaspAP administrator settings through validated interactive
+input. For a clone, a trusted source appliance may supply those settings. In
+both modes, private values travel through SSH standard input and are not saved
+in the repository.
+
+Each target must generate or retain its own hostname, machine ID, SSH host keys,
+DHCP state, Raspberry Pi Connect identity, and Tailscale identity.

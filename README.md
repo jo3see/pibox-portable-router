@@ -35,6 +35,8 @@ flowchart LR
 ## What is included
 
 - Guarded PowerShell orchestration with a read-only default mode
+- A first-device installer that generates private configuration from guided,
+  validated input instead of requiring an existing PiBox
 - Raspberry Pi 3B and Raspberry Pi 5 profiles
 - RaspAP 3.5.5 pinned to verified revisions
 - Persistent Tailscale routing, NAT, kill switch, and TCP MSS clamping
@@ -44,10 +46,11 @@ flowchart LR
 
 ## Current release boundary
 
-Version 0.1 provisions a new PiBox from an existing trusted PiBox configuration
-or from a DPAPI-encrypted export of that configuration. A clean-room first-device
-wizard is planned but is not included yet. Never use configuration from an
-untrusted source appliance.
+The project can provision a first PiBox from a fresh supported Raspberry Pi OS
+Lite installation or reproduce an existing trusted PiBox. It does not flash the
+SD card, create the initial `pibox` account, install the SSH public key, or enroll
+Tailscale automatically. Those identity-bearing steps remain under the owner's
+control.
 
 ## Default hardware
 
@@ -64,27 +67,32 @@ Other observed adapters are documented in [Hardware](docs/HARDWARE.md).
    [configuration contract](PIBOX-CLONE-SPEC.md).
 2. Flash the target, create user `pibox`, enable SSH public-key authentication,
    connect Ethernet, and attach the USB Wi-Fi adapter.
-3. Run a read-only preflight from PowerShell:
+3. Run the first-device installer without `-Apply`. This is a read-only
+   hardware and connection preview:
 
    ```powershell
-   .\provision\Invoke-PiBoxClone.ps1 `
+   .\provision\Invoke-PiBoxFirstInstall.ps1 `
      -TargetAddress 192.168.1.123 `
      -TargetIdentityFile $HOME\.ssh\pibox_ed25519 `
-     -SourceAddress 100.64.0.10 `
-     -SourceIdentityFile $HOME\.ssh\pibox_ed25519
+     -TargetHostname pibox-router `
+     -AccessPointSsid MyPiBox `
+     -UpstreamSsid MyHomeWiFi
    ```
 
-4. Review the output, then repeat the command with `-Apply` and a unique
-   `-TargetHostname`.
+4. Review the output, then repeat the same command with `-Apply`. The installer
+   privately prompts for the PiBox Wi-Fi, RaspAP administrator, and optional
+   upstream Wi-Fi passwords. Passwords are not placed on the command line or
+   written to this repository.
 5. Reboot and enroll the target as a fresh Tailscale node. Never copy
    `/var/lib/tailscale` between devices.
 6. Run the verifier with your selected exit-node Tailscale address:
 
    ```sh
-   sudo bash provision/pibox-verify.sh 100.64.0.20 rtw89_8852bu
+   sudo pibox-verify 100.64.0.20 rtw89_8852bu
    ```
 
-Full instructions are in [Provisioning](provision/README.md).
+Start with the [First-device guide](docs/FIRST-INSTALL.md). Existing PiBox
+owners can instead use the [clone workflow](provision/README.md#clone-an-existing-pibox).
 
 ## Project status
 
