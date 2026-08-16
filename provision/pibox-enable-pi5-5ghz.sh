@@ -46,7 +46,7 @@ upsert wmm_enabled 1
 
 ready=false
 if systemctl restart hostapd.service; then
-    for attempt in $(seq 1 20); do
+    for _ in $(seq 1 20); do
         if systemctl is-active --quiet hostapd.service && \
            hostapd_cli -i wlan0 status 2>/dev/null | grep -Fqx 'state=ENABLED'; then
             ready=true

@@ -57,6 +57,16 @@ remove_client()
     rm -f "$STATE_FILE" "$DNS_STATE_FILE"
 }
 
+cleanup_on_exit()
+{
+    rc=$?
+    trap - EXIT HUP INT TERM
+    if [ "$rc" -ne 0 ] && [ "${cleanup_on_error:-0}" -eq 1 ]; then
+        remove_client
+    fi
+    exit "$rc"
+}
+
 case "${1:-}" in
     on)
         [ "$#" -eq 2 ] || {
@@ -100,14 +110,7 @@ case "${1:-}" in
         chmod 600 "$DNS_STATE_FILE"
 
         cleanup_on_error=1
-        trap '
-            rc=$?
-            trap - EXIT HUP INT TERM
-            if [ "$rc" -ne 0 ] && [ "${cleanup_on_error:-0}" -eq 1 ]; then
-                remove_client
-            fi
-            exit "$rc"
-        ' EXIT HUP INT TERM
+        trap cleanup_on_exit EXIT HUP INT TERM
 
         ip rule add priority "$CLIENT_RULE_PRIORITY" from "$client/32" lookup main
         iptables -I PIBOX-KILLSWITCH 1 -i wlan1 -o wlan0 -d "$client/32" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT

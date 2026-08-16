@@ -59,6 +59,7 @@ preflight()
     esac
 
     [ "$(dpkg --print-architecture)" = arm64 ] || die "The golden build requires the arm64 OS."
+    # shellcheck source=/dev/null
     . /etc/os-release
     [ "${ID:-}" = debian ] || [ "${ID_LIKE:-}" = debian ] || die "Expected a Debian-family Raspberry Pi OS."
     [ "${VERSION_ID:-}" = 13 ] || die "Expected Debian 13; found VERSION_ID=${VERSION_ID:-unknown}."
