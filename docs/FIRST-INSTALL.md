@@ -165,6 +165,10 @@ On the phone, tablet, or laptop you want to protect:
 6. Join the network. The device may say **No internet** at first. Stay
    connected; that is expected until the next steps are complete.
 
+PiBox keeps the network hidden while using hostapd compatibility mode 2. This
+helps phones and tablets find the hidden network reliably after you type its
+exact name.
+
 If a previously saved hidden PiBox network will not reconnect, forget or delete
 that saved network and add it manually again.
 

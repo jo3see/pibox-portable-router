@@ -257,7 +257,9 @@ wpa=2
 wpa_pairwise=CCMP
 rsn_pairwise=CCMP
 country_code=$country
-ignore_broadcast_ssid=$((1 - broadcast_ap))
+# Hidden mode 2 keeps the SSID length in beacons for clients that cannot
+# reliably discover a zero-length hidden SSID. A broadcast AP still uses 0.
+ignore_broadcast_ssid=$((2 * (1 - broadcast_ap)))
 ieee80211n=1
 wmm_enabled=1
 EOF

@@ -35,6 +35,14 @@ try {
         }
     }
 
+    $targetScript = Get-Content -LiteralPath 'provision/pibox-target.sh' -Raw
+    $hiddenCompatibilitySetting = 'ignore_broadcast_ssid=$((2 * (1 - broadcast_ap)))'
+    if ($targetScript.Contains($hiddenCompatibilitySetting)) {
+        Add-Pass 'hidden SSID uses client compatibility mode 2'
+    } else {
+        Add-Failure 'hidden SSID must use client compatibility mode 2'
+    }
+
     $powerShellFiles = Get-ChildItem -Recurse -File -Filter '*.ps1'
     foreach ($file in $powerShellFiles) {
         $tokens = $null

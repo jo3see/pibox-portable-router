@@ -24,7 +24,9 @@ from identities that must be regenerated for every device.
 - SSID: `PiBox`
 - Raspberry Pi 3B: 2.4 GHz channel 6
 - Raspberry Pi 5B: 5 GHz channel 36, 80 MHz width, 802.11ac
-- Country `US`, hidden SSID
+- Country `US`, hidden SSID using hostapd compatibility mode 2. This preserves
+  the original SSID length in hidden beacons for clients that do not reliably
+  discover a zero-length hidden SSID.
 - WPA2-PSK with CCMP
 - DHCP pool: `10.3.141.50` through `10.3.141.254`, 12-hour leases
 - The AP passphrase is supplied through hidden interactive input for a first

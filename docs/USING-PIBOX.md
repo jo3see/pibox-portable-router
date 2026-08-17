@@ -31,6 +31,10 @@ Stay connected if the device says **No internet**. The host network is not
 ready yet. If the saved PiBox network will not reconnect, forget it and add the
 hidden network manually again.
 
+PiBox uses hostapd hidden-network compatibility mode 2. The network remains
+hidden, but its beacon keeps the SSID length so phones and tablets can discover
+it more reliably when you enter the exact network name.
+
 ## 3. Connect `wlan1` to the host Wi-Fi
 
 1. Open **`http://10.3.141.1`** in a browser. Use `http`, not `https`.
